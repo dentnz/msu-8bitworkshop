@@ -1,33 +1,30 @@
+`define debug = 1;
+
 module msu_audio(
   input clk,
   input reset,
   
-  //output test results.. these will be removed in final code
-  output [7:0] msu_audio_end_frame_byte_offset,
+  `ifdef debug
+  output [8:0] msu_audio_end_frame_byte_offset,
   output msu_audio_end_frame,
-  output [7:0] debug_expected_high, 
+  output [7:0] debug_expected_high,
   output msu_audio_state,
-  output msu_audio_mode,
-  output msu_trig_play,
-  output sd_lba_1,
-  output msu_audio_loop_index_frame,
-  output msu_audio_end_frame_word_offset,
-  output partial_frame_state
+  output sd_lba_1
+  `endif
 );
   
   reg [20:0] msu_audio_current_frame = 21'd0;
   reg [20:0] msu_audio_end_frame = 21'd2097151;
   reg [20:0] sd_lba_1 = 21'd0;
   
-  // Following are test values
-  //////////////////////////////////////////////
+  `ifdef debug
   // Assumed we are playing
-  reg msu_audio_play = 1;
+  reg msu_audio_play = 0;
   reg msu_trig_play = 1;
   reg msu_trackmounting_falling = 1;
   // Assumed image size
   //reg [63:0] img_size = 64'd2560;
-  reg [63:0] img_size = 64'd1060;
+  reg [63:0] img_size = 64'd1028;
   // force repeating when high
   reg msu_repeat_out = 1;
   // loop point is first sample
@@ -36,39 +33,44 @@ module msu_audio(
   reg [1:0] sd_rd = 0;
   reg sd_buff_wr = 1;
   reg [31:0] audio_fifo_usedw = 32'd0;
-  reg [7:0] sector_size = 8'd64;
   reg debug_expected_high = 8'd0;
-  //////////////////////////////////////////////
+  `endif
+
+  reg [8:0] sector_size = 9'd63;
   
   // Have to be careful we don't go to negative one here?
   assign msu_audio_end_frame = (img_size[20:0] >> 9) - 1;
-  assign msu_audio_end_frame_byte_offset = img_size[7:0];
-  wire [7:0] msu_audio_end_frame_word_offset = msu_audio_end_frame_byte_offset >> 1;
+  assign msu_audio_end_frame_byte_offset = img_size[8:0];
+  wire [8:0] msu_audio_end_frame_word_offset = msu_audio_end_frame_byte_offset / 2;
   wire [20:0] msu_audio_loop_index_frame = msu_audio_loop_index[20:0] >> 7; 
   
   reg [7:0] msu_audio_mode = 0'd0;
   reg [7:0] msu_audio_state = 0'd0;
   reg [7:0] partial_frame_state = 0'd0;
   // 256 WORDS in a 512 byte sector
-  reg [7:0] msu_audio_word_count = 8'd0;	
-
+  reg [8:0] msu_audio_word_count = 9'd0;
+  
   always @(posedge clk) begin
     // We have a trigger to play...
-    if (msu_trig_play) begin
+    if (reset || msu_trig_play) begin
       // Stop any existing audio playback
       msu_audio_current_frame <= 0;
       msu_audio_state <= 0;
       msu_audio_play <= 0;
+      msu_audio_word_count <= 0;
+      sd_lba_1 <= 0;
       sd_ack[1] <= 1'b1;
+      partial_frame_state <= 0;
+      msu_audio_loop_index <= 0;
       // Work out the audio playback mode
       if (!msu_repeat_out) begin
-        msu_audio_mode <= 1;
+        msu_audio_mode <= 8'd1;
       end else begin
-        msu_audio_mode <= 2;
+        msu_audio_mode <= 8'd2;
       end
-      // This would normally happen on the next few clock cycles - hardcoding for now
-      msu_trig_play <= 0; // @todo remove this
-      //msu_audio_loop_index <= 0;
+      `ifdef debug
+      msu_trig_play <= 0;
+      `endif
     end else begin
       case (msu_audio_state)
         0: begin
@@ -76,13 +78,14 @@ module msu_audio(
             msu_audio_play <= 1'b1;
             // Advance the SD card LBA and read in the next sector
             sd_lba_1 <= msu_audio_current_frame;
-            // Determine audio playback mode
 
             // Go! (request a sector from the HPS). 256 WORDS. 512 BYTES.
             sd_rd[1] <= 1'b1;
 
             msu_audio_state <= msu_audio_state + 1;
-            msu_trackmounting_falling <= 0; // @todo remove this
+            `ifdef debug
+            msu_trackmounting_falling <= 0;
+            `endif
           end
         end
         1: begin
@@ -91,20 +94,21 @@ module msu_audio(
           if (sd_ack[1]) begin
             sd_rd[1] <= 1'b0;
             // Sanity check
-            //msu_audio_word_count <= 0;
+            msu_audio_word_count <= 0;
             msu_audio_state <= msu_audio_state + 1;
           end
         end
         2: begin
+          
           // Keep collecting until we hit the buffer limit 
           if (sd_ack[1] && sd_buff_wr) begin
             msu_audio_word_count <= msu_audio_word_count + 1;
           end
           
-          // @todo remove the next line in non-test mode
           if (msu_audio_word_count == sector_size) begin
-            // Pretend we have a full sector
+            `ifdef debug
             sd_ack[1] <= 0;
+            `endif
             msu_audio_word_count <= 0;
           end
           
@@ -127,8 +131,9 @@ module msu_audio(
             sd_lba_1 <= sd_lba_1 + 1;
             sd_rd[1] <= 1'b1;
             msu_audio_state <= 1;
-            // @todo remove the next line
-            sd_ack[1] <= 1'b1; // remove this
+            `ifdef debug
+            sd_ack[1] <= 1'b1;
+            `endif
           end else begin
             msu_audio_state <= msu_audio_state + 1;
           end
@@ -138,6 +143,8 @@ module msu_audio(
           if (msu_audio_play && msu_audio_end_frame_byte_offset == 0 && msu_audio_play) begin
             // Handle a full frame
             if (msu_audio_mode == 8'd1) begin
+              debug_expected_high <= 8'd50;
+
               // Full final frame, stopped
               msu_audio_play <= 0;
               msu_audio_state <= 0;
@@ -149,8 +156,9 @@ module msu_audio(
               sd_lba_1 <= 0;
               sd_rd[1] <= 1'b1;
               msu_audio_state <= 1;
-              // @todo remove the next line
-              sd_ack[1] <= 1'b1; // remove this
+              `ifdef debug
+              sd_ack[1] <= 1'b1;
+              `endif
             end
           end else begin
             // Handle a partial frame
@@ -163,9 +171,10 @@ module msu_audio(
                 end 
                 1: begin
                   sd_rd[1] <= 1'b1;
-                  // @todo remove the next line
                   msu_audio_state <= 1;
-                  sd_ack[1] <= 1'b1; // remove this  
+                  `ifdef debug
+                  sd_ack[1] <= 1'b1;
+                  `endif
                 end
                 2: begin
                   // Stop
@@ -185,21 +194,22 @@ module msu_audio(
                 end 
                 1: begin
                   sd_rd[1] <= 1'b1;
-                  // @todo remove the next line
                   msu_audio_state <= 1;
-                  sd_ack[1] <= 1'b1; // remove this  
+                  `ifdef debug
+                  sd_ack[1] <= 1'b1;
+                  `endif
                 end
                 2: begin
                   // loop
-                  debug_expected_high <= 8'd50;
                   msu_audio_current_frame <= 0;
                   msu_audio_play <= 1;
                   msu_audio_state <= 1;
                   sd_rd[1] <= 1'b1;
                   sd_lba_1 <= 0;
                   partial_frame_state <= 0;
-                  // @todo remove the next line
-                  sd_ack[1] <= 1'b1; // remove this
+                  `ifdef debug
+                  sd_ack[1] <= 1'b1;
+                  `endif
                 end
               endcase
             end
