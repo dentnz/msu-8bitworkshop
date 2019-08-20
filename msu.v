@@ -175,38 +175,38 @@ module msu_audio(
             end
           end else begin
             case (partial_frame_state)
-             	0: begin
-                  msu_audio_current_frame <= msu_audio_current_frame + 1;
-                  sd_lba_1 <= msu_audio_current_frame + 1;
-                  partial_frame_state <= 8'd1;
-                end 
-                1: begin
-                  sd_rd_1 <= 1'b1;
+              0: begin
+                msu_audio_current_frame <= msu_audio_current_frame + 1;
+                sd_lba_1 <= msu_audio_current_frame + 1;
+                partial_frame_state <= 8'd1;
+              end 
+              1: begin
+                sd_rd_1 <= 1'b1;
+                msu_audio_state <= 1;
+                `ifdef debug
+                sd_ack[1] <= 1'b1;
+                `endif
+              end
+              2: begin
+                if (msu_audio_mode == 8'd1) begin
+                  // Stop
+                  msu_audio_play <= 0;
+                  msu_audio_state <= 0;
+                  sd_lba_1 <= 0;
+                  partial_frame_state <= 0;
+                end else begin
+                  // Loop
+                  msu_audio_current_frame <= 0;
+                  msu_audio_play <= 1;
                   msu_audio_state <= 1;
+                  sd_rd_1 <= 1'b1;
+                  sd_lba_1 <= 0;
+                  partial_frame_state <= 0;
                   `ifdef debug
                   sd_ack[1] <= 1'b1;
                   `endif
                 end
-                2: begin
-                  if (msu_audio_mode == 8'd1) begin
-                    // Stop
-                    msu_audio_play <= 0;
-                    msu_audio_state <= 0;
-                    sd_lba_1 <= 0;
-                    partial_frame_state <= 0;
-                  end else begin
-                    // Loop
-                    msu_audio_current_frame <= 0;
-                    msu_audio_play <= 1;
-                    msu_audio_state <= 1;
-                    sd_rd_1 <= 1'b1;
-                    sd_lba_1 <= 0;
-                    partial_frame_state <= 0;
-                    `ifdef debug
-                    sd_ack[1] <= 1'b1;
-                    `endif
-                  end
-            	end
+              end
             endcase
           end
         end 
