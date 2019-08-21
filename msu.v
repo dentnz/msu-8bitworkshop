@@ -16,7 +16,7 @@ module msu_audio(
   
   output [8:0] msu_audio_end_frame_byte_offset,
   output msu_audio_end_frame,
-  output [7:0] debug_expected_high,
+  output [20:0] debug_expected_high,
   output msu_audio_state,
   output [20:0] sd_lba_1,
   output sd_rd_1 // Needs to be wired to sd_rd[1]
@@ -26,7 +26,7 @@ module msu_audio(
   reg [20:0] msu_audio_end_frame = 21'd2097151;
   `ifndef debug
   reg msu_audio_play = 0;
-  reg [31:0] msu_audio_loop_index = 32'd0;
+  reg [31:0] msu_audio_loop_index = 32'd1080;
   reg [31:0] img_size = 32'd0;
   `endif
   
@@ -39,14 +39,14 @@ module msu_audio(
   //reg [63:0] img_size = 64'd2560;
   reg [63:0] img_size = 64'd2052;
   // force repeating when high
-  reg msu_repeat_out = 0;
+  reg msu_repeat_out = 1;
   // loop point is first sample
   reg [31:0] msu_audio_loop_index = 32'd0;
   reg [1:0] sd_ack = 0;
   reg [1:0] sd_rd = 0;
   reg sd_buff_wr = 1;
   reg [31:0] audio_fifo_usedw = 32'd0;
-  reg debug_expected_high = 8'd0;
+  reg [20:0] debug_expected_high = 21'd0;
   `endif
 
   reg [8:0] sector_size = 9'd64;
@@ -73,7 +73,7 @@ module msu_audio(
       msu_audio_word_count <= 0;
       sd_lba_1 <= 0;
       partial_frame_state <= 0;
-      msu_audio_loop_index <= 0;
+      //msu_audio_loop_index <= 0;
       // Work out the audio playback mode
       if (!msu_repeat_out) begin
         msu_audio_mode <= 8'd1;
@@ -157,7 +157,6 @@ module msu_audio(
           if (msu_audio_play && msu_audio_end_frame_byte_offset == 0 && msu_audio_play) begin
             // Handle a full frame
             if (msu_audio_mode == 8'd1) begin
-              debug_expected_high <= 8'd50;
               // Full final frame, stopped
               msu_audio_play <= 0;
               msu_audio_state <= 0;
@@ -196,6 +195,7 @@ module msu_audio(
                   partial_frame_state <= 0;
                 end else begin
                   // Loop
+                  debug_expected_high <= msu_audio_loop_index_frame;
                   if (msu_audio_loop_index_frame == 0) begin
                     // just go back to 0
                     msu_audio_current_frame <= 0;
