@@ -37,11 +37,11 @@ module msu_audio(
   reg msu_trackmounting_falling = 1;
   // Assumed image size
   //reg [63:0] img_size = 64'd2560;
-  reg [63:0] img_size = 64'd1028;
+  reg [63:0] img_size = 64'd1060;
   // force repeating when high
-  reg msu_repeat_out = 0;
+  reg msu_repeat_out = 1;
   // loop point is first sample
-  reg [31:0] msu_audio_loop_index = 32'd0;
+  reg [31:0] msu_audio_loop_index = 32'd2056;
   reg [1:0] sd_ack = 0;
   reg [1:0] sd_rd = 0;
   reg sd_buff_wr = 1;
@@ -196,15 +196,20 @@ module msu_audio(
                   partial_frame_state <= 0;
                 end else begin
                   // Loop
-                  msu_audio_current_frame <= 0;
-                  msu_audio_play <= 1;
-                  msu_audio_state <= 1;
-                  sd_rd_1 <= 1'b1;
-                  sd_lba_1 <= 0;
-                  partial_frame_state <= 0;
-                  `ifdef debug
-                  sd_ack[1] <= 1'b1;
-                  `endif
+                  if (msu_audio_loop_index_frame == 0) begin
+                    // just go back to 0
+                    msu_audio_current_frame <= 0;
+                    msu_audio_play <= 1;
+                    msu_audio_state <= 1;
+                    sd_rd_1 <= 1'b1;
+                    sd_lba_1 <= 0;
+                    partial_frame_state <= 0;
+                    `ifdef debug
+                    sd_ack[1] <= 1'b1;
+                    `endif
+                  end else begin
+                    
+                  end
                 end
               end
             endcase
