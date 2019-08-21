@@ -5,7 +5,7 @@ module msu_audio(
   input reset,
   
   `ifndef debug
-  inout [31:0] img_size,
+  input [31:0] img_size,
   input msu_trig_play,
   input [3:0] sd_ack,
   input msu_repeat_out,
@@ -27,7 +27,7 @@ module msu_audio(
   `ifndef debug
   reg msu_audio_play = 0;
   reg [31:0] msu_audio_loop_index = 32'd0;
-  reg [31:0] img_size = 32'd1024;
+  reg [31:0] img_size = 32'd0;
   `endif
   
   `ifdef debug
@@ -37,11 +37,11 @@ module msu_audio(
   reg msu_trackmounting_falling = 1;
   // Assumed image size
   //reg [63:0] img_size = 64'd2560;
-  reg [63:0] img_size = 64'd1060;
+  reg [63:0] img_size = 64'd2052;
   // force repeating when high
-  reg msu_repeat_out = 1;
+  reg msu_repeat_out = 0;
   // loop point is first sample
-  reg [31:0] msu_audio_loop_index = 32'd2056;
+  reg [31:0] msu_audio_loop_index = 32'd0;
   reg [1:0] sd_ack = 0;
   reg [1:0] sd_rd = 0;
   reg sd_buff_wr = 1;
@@ -49,7 +49,7 @@ module msu_audio(
   reg debug_expected_high = 8'd0;
   `endif
 
-  reg [8:0] sector_size = 9'd63;
+  reg [8:0] sector_size = 9'd64;
   
   // Have to be careful we don't go to negative one here?
   assign msu_audio_end_frame = (img_size[20:0] >> 9) - 1;
